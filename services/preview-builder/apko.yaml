@@ -1,0 +1,33 @@
+# apko config for the per-PR preview runtime image.
+# Built via `apko build apko.yaml <tag> preview.tar`.
+contents:
+  repositories:
+    - https://packages.wolfi.dev/os
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  packages:
+    - wolfi-baselayout
+    - ca-certificates-bundle
+    - nodejs-22
+    - busybox
+
+accounts:
+  groups:
+    - groupname: nonroot
+      gid: 65532
+  users:
+    - username: nonroot
+      uid: 65532
+      gid: 65532
+  run-as: nonroot
+
+entrypoint:
+  command: /usr/bin/node /app/server.mjs
+
+archs:
+  - x86_64
+  - aarch64
+
+annotations:
+  org.opencontainers.image.source: https://github.com/branch/branch
+  org.opencontainers.image.description: Branch per-PR preview runtime

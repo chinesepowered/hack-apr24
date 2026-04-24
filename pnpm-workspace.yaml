@@ -1,0 +1,14 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "packages/adapters/*"
+  - "services/subgraphs/*"
+  - "services/cosmo-router"
+  - "services/webhook-gateway"
+  - "services/preview-builder"
+  # services/agents/* are Guild agent projects, managed by the Guild CLI
+  # with npm. They are intentionally excluded from this workspace.
+
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver

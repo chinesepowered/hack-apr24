@@ -1,0 +1,26 @@
+{
+  "name": "@branch/subgraph-catalog",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@branch/db": "workspace:*",
+    "@pothos/core": "^4.3.0",
+    "@pothos/plugin-directives": "^4.2.0",
+    "@pothos/plugin-federation": "^4.2.0",
+    "drizzle-orm": "^0.36.4",
+    "graphql": "^16.9.0",
+    "graphql-yoga": "^5.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

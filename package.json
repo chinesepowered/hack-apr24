@@ -1,0 +1,28 @@
+{
+  "name": "branch",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Autonomous feature-dev agent with ephemeral per-PR database preview environments.",
+  "packageManager": "pnpm@10.30.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "demo": "pnpm --filter @branch/web dev",
+    "demo:live": "powershell -ExecutionPolicy Bypass -File scripts/live-up.ps1",
+    "demo:down": "powershell -ExecutionPolicy Bypass -File scripts/live-down.ps1",
+    "compose:supergraph": "powershell -ExecutionPolicy Bypass -File scripts/compose-supergraph.ps1",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.0",
+    "turbo": "^2.5.0",
+    "typescript": "^5.6.3"
+  }
+}

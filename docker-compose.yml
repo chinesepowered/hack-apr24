@@ -1,0 +1,54 @@
+# Local dev stack for Branch.
+# Services marked (demo) are needed only for full stage demo; `pnpm dev` can
+# run without them once individual adapters fall back to their mocks.
+services:
+  postgres:
+    image: cgr.dev/chainguard/postgres:latest
+    environment:
+      POSTGRES_USER: branch
+      POSTGRES_PASSWORD: branch
+      POSTGRES_DB: branch_prod
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  nats:
+    # Chainguard's nats image requires a paid pull token; the public image is
+    # fine for local dev. Swap back when credentials are configured.
+    image: nats:2-alpine
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"  # UI
+      - "4318:4318"    # OTLP HTTP
+
+  cosmo-router:
+    build: ./services/cosmo-router
+    depends_on: [nats]
+    ports:
+      - "3002:3002"  # GraphQL
+      - "5025:5025"  # MCP
+    volumes:
+      - ./services/cosmo-router/config.yaml:/app/config.yaml:ro
+      - ./services/cosmo-router/supergraph.json:/app/supergraph.json:ro
+
+  # (demo) self-hosted InsForge backend platform.
+  # Uncomment once the team has cloned insforge/insforge and configured it.
+  # insforge:
+  #   image: insforge/insforge:latest
+  #   depends_on: [postgres]
+  #   environment:
+  #     DATABASE_URL: postgres://branch:branch@postgres:5432/insforge
+  #   ports:
+  #     - "7130:7130"
+
+volumes:
+  pgdata: {}

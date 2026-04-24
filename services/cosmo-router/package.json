@@ -1,0 +1,9 @@
+{
+  "name": "@branch/cosmo-router",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "compose": "wgc router compose --input supergraph.yaml --out supergraph.json",
+    "dev": "docker compose up cosmo-router"
+  }
+}

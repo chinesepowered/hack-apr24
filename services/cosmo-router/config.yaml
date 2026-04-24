@@ -1,0 +1,31 @@
+# Cosmo Router config — loaded when the router container boots.
+# Enables MCP Gateway + NATS streams for the Branch demo.
+version: "1"
+
+listen_addr: "0.0.0.0:3002"
+
+# Serve the supergraph from a local JSON file instead of Cosmo Cloud CDN.
+execution_config:
+  file:
+    path: "./supergraph.json"
+
+# --- MCP Gateway (Wundergraph Cosmo MCP) ---
+# Disabled until a storage provider is declared. Re-enable by adding a
+# `storage_providers` block and pointing `mcp.storage.provider_id` at it.
+mcp:
+  enabled: false
+
+# --- Cosmo Streams (NATS event provider) ---
+events:
+  providers:
+    nats:
+      - id: default
+        url: "nats://nats:4222"
+
+telemetry:
+  service_name: "branch-cosmo-router"
+  tracing:
+    enabled: true
+    exporters:
+      - exporter: http
+        endpoint: "http://jaeger:4318"

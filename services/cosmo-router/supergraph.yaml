@@ -1,0 +1,16 @@
+# wgc router compose input — local composition without Cosmo Cloud.
+# Usage: `wgc router compose --input supergraph.yaml --out supergraph.json`
+version: 1
+subgraphs:
+  - name: customers
+    routing_url: http://host.docker.internal:4001/graphql
+    schema:
+      file: ./schemas/customers.graphql
+  - name: orders
+    routing_url: http://host.docker.internal:4002/graphql
+    schema:
+      file: ./schemas/orders.graphql
+  - name: catalog
+    routing_url: http://host.docker.internal:4003/graphql
+    schema:
+      file: ./schemas/catalog.graphql

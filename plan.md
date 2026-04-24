@@ -45,8 +45,8 @@ GitHub Issue → Guild Trigger (webhook)
 - **Package manager**: pnpm 9 workspaces + Turborepo
 - **Lint/format**: Biome (single tool)
 - **Frontend**: Next.js 16 (App Router, React 19), Tailwind v4, shadcn/ui, TanStack Query, Zustand, Framer Motion
-- **Agents**: `@guildai/agents-sdk` + `babel-plugin-agent-compiler`; planner (LLM agent) + executor (self-managed state)
-- **LLM**: GLM 5.1 via OpenAI-compatible endpoint (`OPENAI_BASE_URL` + `OPENAI_API_KEY`)
+- **Agents**: `@guildai/agents-sdk` **coded agents** (`"use agent"` directive, `AUTO_MANAGED_STATE` template); planner + executor. Coded agents give us direct TypeScript control so we can call GLM 5.1 via the OpenAI SDK instead of Guild's workspace-level `task.llm` abstraction.
+- **LLM**: GLM 5.1 via OpenAI-compatible endpoint — `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` (e.g. `glm-5.1`) — called directly from inside coded agents using the `openai` npm package.
 - **GraphQL**: GraphQL Yoga + Pothos; `@graphql-tools/federation` directives; Cosmo Router binary in Chainguard container
 - **Event bus**: NATS (Cosmo Streams provider) — single container
 - **DB**: Postgres 16 (base "prod"); Ghost for forks; node-postgres + Drizzle ORM for migrations
@@ -62,20 +62,25 @@ GitHub Issue → Guild Trigger (webhook)
 branch/
 ├── apps/web/                   Next.js 16 dashboard
 ├── services/
-│   ├── agents/                 Guild agents + trigger handlers
+│   ├── agents/                 Guild agent sub-projects (npm-managed, excluded from pnpm workspace)
+│   │   ├── planner/            `guild agent init` project — coded agent
+│   │   └── executor/           `guild agent init` project — coded agent
 │   ├── subgraphs/{customers,orders,catalog}/
 │   ├── cosmo-router/           Router config + Dockerfile
+│   ├── webhook-gateway/        Express receiver that forwards GitHub events to Guild triggers
 │   └── preview-builder/        apko build helper
 ├── packages/
 │   ├── adapters/{ghost,insforge,wundergraph,github,chainguard}/
 │   ├── shared/                 zod schemas, types, env parser
 │   └── db/                     seed schema + fixtures + drizzle config
 ├── docker-compose.yml
-├── pnpm-workspace.yaml
+├── pnpm-workspace.yaml         excludes services/agents/**
 ├── turbo.json
 ├── biome.json
 └── .env.example
 ```
+
+> **Monorepo note:** Guild agent projects are scaffolded via `guild agent init`, use `npm`, and ship their own `package.json` with a runtime-provided SDK. They are kept in-tree under `services/agents/` for visibility but are excluded from the root `pnpm-workspace.yaml` to avoid package manager conflicts.
 
 ## 6. Sponsor integrations + doc links
 
@@ -168,14 +173,19 @@ Please create + provide via `.env` (I'll read from `.env.example`):
 - `COSMO_API_KEY` — Wundergraph Cosmo Cloud API key (or we self-host)
 - `INSFORGE_API_KEY` + `INSFORGE_URL` — self-hosted default `http://localhost:7130`
 - `SLACK_BOT_TOKEN` + `SLACK_CHANNEL_ID` — Slack app in demo workspace
-- `OPENAI_API_KEY` + `OPENAI_BASE_URL` — GLM 5.1 endpoint
+- `OPENAI_API_KEY` + `OPENAI_BASE_URL` + `OPENAI_MODEL` — GLM 5.1 endpoint + model string (e.g. `glm-5.1`)
 - `CHAINGUARD_PULL_TOKEN_USERNAME` / `_PASSWORD` — from `chainctl auth pull-token --repository=javascript --ttl=720h`
 - `NGROK_AUTHTOKEN` — for webhook tunnel during demo
 
-## 11. Open risks / items to validate early
+## 11. Risks — verified and open
 
-- **Guild LLM config**: confirm `@guildai/agents-sdk` accepts an OpenAI-compatible `baseURL` override for GLM 5.1. Verify first; fall back to a local OpenAI-SDK wrapper inside the agent if needed.
-- **Ghost fork address reachability**: confirm forks are reachable from the host running `psql` during demo (not only from inside the Ghost cloud).
+**Verified before scaffold:**
+- ✅ **Ghost fork reachability**: `ghost fork` produces a standard Postgres host reachable from any machine with the password in `~/.pgpass`. Live `psql` demo is feasible.
+- 🟡 **Guild LLM config**: Guild's `task.llm` is set at the workspace level in `app.guild.ai`, not per-agent. Resolution: use **coded agents** and call GLM 5.1 directly via the `openai` SDK using `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL`. This path also unlocks Guild's engineering-focused prize tier.
+- 🟡 **Guild project layout**: agent projects are self-contained (`guild agent init`), npm-managed, and the SDK is runtime-provided. Resolution: keep them under `services/agents/<name>/` but exclude them from the root `pnpm-workspace.yaml`.
+
+**Still open, validate during build:**
 - **Cosmo Cloud vs self-host**: decide once API key is available; self-host via official docker-compose is the safer demo path.
 - **InsForge self-host startup time**: validate cold start < 30s for demo reset.
 - **apko build time**: must be < 60s per preview image to stay within demo pacing; otherwise pre-build and swap.
+- **GitHub → Guild trigger path**: confirm that Guild's hosted triggers can invoke a coded agent from a GitHub webhook, or route through our own `webhook-gateway` service that calls the Guild API.
