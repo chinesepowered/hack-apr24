@@ -29,7 +29,9 @@ Branch is an autonomous feature-development agent: a GitHub issue lands, and min
 - A persistent `branch-prod` database on Ghost that Branch forks on every run. Each fork is copy-on-write, lands in seconds, and shows up in the dashboard's **Fork** card with the real Timescale-Cloud host, port, and storage usage from the API response.
 
 **Where it appears in the demo**
-- When a run starts, the UI's Fork card flips from "forking…" to a concrete `postgres://tsdbadmin:…@penuzobpcy.vq9ejzriud.tsdb.cloud.timescale.com:33599/pr-101-vat-support` connection string — a **real** psql-able database that holds a copy-on-write snapshot of prod, against which the PR's migration has just been applied.
+- When a run starts, the UI's Fork card flips from "forking…" to a concrete `postgres://tsdbadmin:…@<host>.tsdb.cloud.timescale.com:<port>/tsdb` connection string — a **real** psql-able database that holds a copy-on-write snapshot of prod.
+- The Migrate card then logs each DDL statement actually applied against that fork (`OK (185ms): ALTER TABLE customers ADD COLUMN vat_number VARCHAR(32)…`) via a postgres-js client (`packages/db/src/fork.ts → applyMigrationToFork`). Reruns hit "already exists" branches and degrade to no-ops, so the migration is idempotent on the fork.
+- The Verify card probes the fork directly via `information_schema` to prove the column landed: `Fork inspection: customers.vat_number character varying(32) nullable=true check=true index=true`.
 
 **Pitch (Ghost — top 5)**
 *"Ghost's entire thesis is 'fork databases as casually as you fork branches.' Branch makes that literal: every PR gets a forked database as part of opening the PR. No staging environment, no 'does this migration blow up with real data?' anxiety — the PR card has a psql URL attached. That's the feature Ghost is building toward; we shipped it in a weekend."*
@@ -45,7 +47,7 @@ Branch is an autonomous feature-development agent: a GitHub issue lands, and min
 - **Chainguard Postgres** (`cgr.dev/chainguard/postgres`) as the base database container in `docker-compose.yml` — the same minimal-attack-surface image Chainguard ships, now serving Branch's prod DB.
 
 **Where it appears in the demo**
-- The **Build** phase produces a real `sha256:…` digest loaded into the host Docker daemon, and the **Image** card shows CVE counts ("node:20: 312 CVEs → preview: 0 CVEs, 48MB"). That number is live from `grype`, not a slide.
+- The **Build** phase produces a real `sha256:…` digest loaded into the host Docker daemon, and the **Image** card shows CVE counts. On the actual runs we just executed: `node:20=1408  chainguard=0  Δ=-1408` — straight from grype scanning `registry:node:20` and the apko-built `oci-archive:` tarball. No daemon-socket gymnastics; both targets are scanned without leaving the grype container.
 
 **Pitch (Chainguard — 1st)**
 *"Every PR Branch opens ships with a Chainguard-hardened preview image built by apko with a real CVE delta vs. upstream. Our base containers are already Chainguard. Supply-chain security isn't a bolt-on step; it's the default runtime for every artifact the agent produces."*

@@ -1,6 +1,6 @@
 {
   "SPDXID": "SPDXRef-DOCUMENT",
-  "name": "sbom-sha256:534a8ddbe2c704e35aeae4bd18c067e6a8a7e52b23f2418d533d134829488b5b",
+  "name": "sbom-sha256:e8eace9d851cd6d48bff63a53841e233eee257f52e0f3ea48e1c82c5a40f1533",
   "spdxVersion": "SPDX-2.3",
   "creationInfo": {
     "created": "2026-04-17T19:17:28Z",
@@ -13,13 +13,13 @@
   "dataLicense": "CC0-1.0",
   "documentNamespace": "https://spdx.org/spdxdocs/apko/",
   "documentDescribes": [
-    "SPDXRef-Package-sha256-534a8ddbe2c704e35aeae4bd18c067e6a8a7e52b23f2418d533d134829488b5b"
+    "SPDXRef-Package-sha256-e8eace9d851cd6d48bff63a53841e233eee257f52e0f3ea48e1c82c5a40f1533"
   ],
   "packages": [
     {
-      "SPDXID": "SPDXRef-Package-sha256-534a8ddbe2c704e35aeae4bd18c067e6a8a7e52b23f2418d533d134829488b5b",
-      "name": "sha256:534a8ddbe2c704e35aeae4bd18c067e6a8a7e52b23f2418d533d134829488b5b",
-      "versionInfo": "sha256:534a8ddbe2c704e35aeae4bd18c067e6a8a7e52b23f2418d533d134829488b5b",
+      "SPDXID": "SPDXRef-Package-sha256-e8eace9d851cd6d48bff63a53841e233eee257f52e0f3ea48e1c82c5a40f1533",
+      "name": "sha256:e8eace9d851cd6d48bff63a53841e233eee257f52e0f3ea48e1c82c5a40f1533",
+      "versionInfo": "sha256:e8eace9d851cd6d48bff63a53841e233eee257f52e0f3ea48e1c82c5a40f1533",
       "filesAnalyzed": false,
       "description": "Multi-arch image index",
       "downloadLocation": "NOASSERTION",
@@ -29,13 +29,13 @@
       "checksums": [
         {
           "algorithm": "SHA256",
-          "checksumValue": "534a8ddbe2c704e35aeae4bd18c067e6a8a7e52b23f2418d533d134829488b5b"
+          "checksumValue": "e8eace9d851cd6d48bff63a53841e233eee257f52e0f3ea48e1c82c5a40f1533"
         }
       ],
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:oci/preview@sha256:534a8ddbe2c704e35aeae4bd18c067e6a8a7e52b23f2418d533d134829488b5b?mediaType=application%2Fvnd.oci.image.index.v1%2Bjson",
+          "referenceLocator": "pkg:oci/preview@sha256:e8eace9d851cd6d48bff63a53841e233eee257f52e0f3ea48e1c82c5a40f1533?mediaType=application%2Fvnd.oci.image.index.v1%2Bjson",
           "referenceType": "purl"
         }
       ]
@@ -85,24 +85,24 @@
       ]
     },
     {
-      "SPDXID": "SPDXRef-Package-https-C47C47github.comC47chinesepoweredC47hack-apr24.gitC64e09c59ffebd0c942d72e01ac0a43cec9693c9eb0",
+      "SPDXID": "SPDXRef-Package-https-C47C47github.comC47chinesepoweredC47hack-apr24.gitC64a6cc30fd6946807225108daeec6a275cde6cf590",
       "name": "github.com/chinesepowered/hack-apr24.git",
-      "versionInfo": "e09c59ffebd0c942d72e01ac0a43cec9693c9eb0",
+      "versionInfo": "a6cc30fd6946807225108daeec6a275cde6cf590",
       "filesAnalyzed": false,
       "description": "Image configuration source",
-      "downloadLocation": "https://github.com/chinesepowered/hack-apr24.git@e09c59ffebd0c942d72e01ac0a43cec9693c9eb0",
+      "downloadLocation": "https://github.com/chinesepowered/hack-apr24.git@a6cc30fd6946807225108daeec6a275cde6cf590",
       "supplier": "Organization: Chainguard, Inc.",
       "primaryPackagePurpose": "SOURCE",
       "checksums": [
         {
           "algorithm": "SHA1",
-          "checksumValue": "e09c59ffebd0c942d72e01ac0a43cec9693c9eb0"
+          "checksumValue": "a6cc30fd6946807225108daeec6a275cde6cf590"
         }
       ],
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:github/chinesepowered/hack-apr24@e09c59ffebd0c942d72e01ac0a43cec9693c9eb0",
+          "referenceLocator": "pkg:github/chinesepowered/hack-apr24@a6cc30fd6946807225108daeec6a275cde6cf590",
           "referenceType": "purl"
         }
       ]
@@ -110,19 +110,19 @@
   ],
   "relationships": [
     {
-      "spdxElementId": "SPDXRef-Package-sha256-534a8ddbe2c704e35aeae4bd18c067e6a8a7e52b23f2418d533d134829488b5b",
+      "spdxElementId": "SPDXRef-Package-sha256-e8eace9d851cd6d48bff63a53841e233eee257f52e0f3ea48e1c82c5a40f1533",
       "relationshipType": "VARIANT_OF",
       "relatedSpdxElement": "SPDXRef-Package-sha256-a44f6c02e8fa0e3917453cc31918bf19647acc470070f3f45a7bde848fc12cd4"
     },
     {
-      "spdxElementId": "SPDXRef-Package-sha256-534a8ddbe2c704e35aeae4bd18c067e6a8a7e52b23f2418d533d134829488b5b",
+      "spdxElementId": "SPDXRef-Package-sha256-e8eace9d851cd6d48bff63a53841e233eee257f52e0f3ea48e1c82c5a40f1533",
       "relationshipType": "VARIANT_OF",
       "relatedSpdxElement": "SPDXRef-Package-sha256-09646a170a48555c9c417ed37d153d939d1a62221d11404d0bc13dc9683cd866"
     },
     {
-      "spdxElementId": "SPDXRef-Package-sha256-534a8ddbe2c704e35aeae4bd18c067e6a8a7e52b23f2418d533d134829488b5b",
+      "spdxElementId": "SPDXRef-Package-sha256-e8eace9d851cd6d48bff63a53841e233eee257f52e0f3ea48e1c82c5a40f1533",
       "relationshipType": "GENERATED_FROM",
-      "relatedSpdxElement": "SPDXRef-Package-https-C47C47github.comC47chinesepoweredC47hack-apr24.gitC64e09c59ffebd0c942d72e01ac0a43cec9693c9eb0"
+      "relatedSpdxElement": "SPDXRef-Package-https-C47C47github.comC47chinesepoweredC47hack-apr24.gitC64a6cc30fd6946807225108daeec6a275cde6cf590"
     }
   ]
 }

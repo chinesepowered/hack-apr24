@@ -2704,12 +2704,12 @@
     {
       "spdxElementId": "SPDXRef-Package-Image-sha256-09646a170a48555c9c417ed37d153d939d1a62221d11404d0bc13dc9683cd866",
       "relationshipType": "CONTAINS",
-      "relatedSpdxElement": "SPDXRef-Package-apk-libbrotlidec1-1.2.0-r3"
+      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-libbrotlidec1"
     },
     {
       "spdxElementId": "SPDXRef-Package-Image-sha256-09646a170a48555c9c417ed37d153d939d1a62221d11404d0bc13dc9683cd866",
       "relationshipType": "CONTAINS",
-      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-libbrotlidec1"
+      "relatedSpdxElement": "SPDXRef-Package-apk-libbrotlidec1-1.2.0-r3"
     },
     {
       "spdxElementId": "SPDXRef-Package-apk-libbrotlienc1-1.2.0-r3",
