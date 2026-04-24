@@ -5,6 +5,13 @@ async function main() {
     process.env.DATABASE_URL ?? 'postgres://branch:branch@localhost:5432/branch_prod'
   const { db, sql } = createClient(connectionString)
 
+  const existing = await db.select().from(customers).limit(1)
+  if (existing.length > 0) {
+    await sql.end()
+    console.log('seed: already populated, skipping')
+    return
+  }
+
   await db.insert(products).values([
     { sku: 'SKU-1', title: 'Demo Widget', priceCents: 2100 },
     { sku: 'SKU-2', title: 'Demo Gadget', priceCents: 4200 },

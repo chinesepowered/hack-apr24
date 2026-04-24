@@ -1,13 +1,5 @@
 import type { FileChange, GitHubAdapter, OpenedPr } from './types.ts'
 
-export interface OpenedPrDetails extends OpenedPr {
-  title: string
-  body: string
-  filesChanged: number
-  additions: number
-  deletions: number
-}
-
 export class GitHubMock implements GitHubAdapter {
   private counter = 481
 
@@ -18,7 +10,7 @@ export class GitHubMock implements GitHubAdapter {
     branch: string
     baseBranch?: string
     files: FileChange[]
-  }): Promise<OpenedPrDetails> {
+  }): Promise<OpenedPr> {
     const number = ++this.counter
     const additions = params.files.reduce(
       (sum, f) => sum + f.content.split('\n').length,

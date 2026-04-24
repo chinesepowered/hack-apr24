@@ -9,11 +9,25 @@ execution_config:
   file:
     path: "./supergraph.json"
 
+# --- Storage providers (referenced by mcp.storage.provider_id below) ---
+storage_providers:
+  file_system:
+    - id: mcp
+      path: "./operations"
+
 # --- MCP Gateway (Wundergraph Cosmo MCP) ---
-# Disabled until a storage provider is declared. Re-enable by adding a
-# `storage_providers` block and pointing `mcp.storage.provider_id` at it.
 mcp:
-  enabled: false
+  enabled: true
+  server:
+    listen_addr: "0.0.0.0:5025"
+  storage:
+    provider_id: mcp
+  graph_name: branch
+  # Expose the full schema so MCP clients can explore and call any operation.
+  # OK in a demo/internal context; disable in prod.
+  expose_schema: true
+  enable_arbitrary_operations: true
+  exclude_mutations: false
 
 # --- Cosmo Streams (NATS event provider) ---
 events:

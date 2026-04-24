@@ -8,6 +8,7 @@ export { ChainguardLive, ChainguardMock }
 export function makeChainguard(opts: {
   pullTokenUsername?: string
   pullTokenPassword?: string
+  workspaceRoot?: string
   useMock?: boolean
 }): ChainguardAdapter {
   if (opts.useMock) return new ChainguardMock()

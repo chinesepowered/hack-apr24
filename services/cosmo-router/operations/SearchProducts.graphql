@@ -1,0 +1,7 @@
+query SearchProducts($query: String!) {
+  searchProducts(query: $query) {
+    sku
+    title
+    priceCents
+  }
+}

@@ -7,9 +7,9 @@ import {
   demoPrBody,
   demoVerifyQuery,
 } from '@branch/shared'
-import { GhostMock } from '@branch/adapter-ghost'
-import { GitHubMock } from '@branch/adapter-github'
-import { ChainguardMock } from '@branch/adapter-chainguard'
+import { makeGhost } from '@branch/adapter-ghost'
+import { makeGitHub } from '@branch/adapter-github'
+import { makeChainguard } from '@branch/adapter-chainguard'
 import { publish } from './bus.ts'
 import { planIssue } from './planner.ts'
 
@@ -45,9 +45,24 @@ async function execute(opts: StartRunOptions): Promise<void> {
   const runId = opts.runId
   const issue = opts.issue ?? demoIssue
   const speed = opts.speed ?? 1
-  const ghost = new GhostMock()
-  const github = new GitHubMock()
-  const chainguard = new ChainguardMock()
+  const ghost = makeGhost({
+    apiKey: process.env.GHOST_API_KEY,
+    spaceId: process.env.GHOST_SPACE_ID,
+    useMock: process.env.USE_MOCK_GHOST === '1',
+  })
+  const github = makeGitHub({
+    appId: process.env.GITHUB_APP_ID,
+    privateKey: process.env.GITHUB_APP_PRIVATE_KEY,
+    installationId: process.env.GITHUB_INSTALLATION_ID,
+    useMock: process.env.USE_MOCK_GITHUB === '1',
+  })
+  const chainguard = makeChainguard({
+    pullTokenUsername: process.env.CHAINGUARD_PULL_TOKEN_USERNAME,
+    pullTokenPassword: process.env.CHAINGUARD_PULL_TOKEN_PASSWORD,
+    workspaceRoot: process.env.BRANCH_WORKSPACE_ROOT ?? process.cwd(),
+    useMock: process.env.USE_MOCK_CHAINGUARD === '1',
+  })
+  const demoRepo = process.env.GITHUB_DEMO_REPO
 
   const ts = () => new Date().toISOString()
   const pause = (ms: number) => sleep(ms / speed)
@@ -75,10 +90,18 @@ async function execute(opts: StartRunOptions): Promise<void> {
 
   // ----- FORK -----
   await phase(runId, 'fork', 'Forking production database', async () => {
-    await log(runId, 'fork', 'Requesting Ghost fork of branch-prod')
+    const ghostLive = await ghost.isLive()
+    const baseDb = process.env.GHOST_BASE_DATABASE ?? 'branch-prod'
+    await log(
+      runId,
+      'fork',
+      ghostLive
+        ? `Requesting Ghost fork of ${baseDb} via api.ghost.build`
+        : `Requesting Ghost fork of ${baseDb} (mock)`,
+    )
     await pause(500)
-    const fork = await ghost.fork('branch-prod', `pr-${issue.number}-vat-support`)
-    await log(runId, 'fork', `Copy-on-write clone ready in ${fork.region}`)
+    const fork = await ghost.fork(baseDb, `pr-${issue.number}-vat-support`)
+    await log(runId, 'fork', `Copy-on-write clone ready${fork.region ? ` in ${fork.region}` : ''}`)
     await pause(300)
     emit({
       runId,
@@ -166,13 +189,22 @@ async function execute(opts: StartRunOptions): Promise<void> {
 
   // ----- PR -----
   await phase(runId, 'pr', 'Opening pull request', async () => {
-    await log(runId, 'pr', 'Pushing branch feat/vat-support')
+    const githubLive = await github.isLive()
+    const targetRepo = demoRepo && demoRepo !== 'owner/repo' ? demoRepo : issue.repo
+    const branch = `feat/vat-support-${issue.number}-${Date.now().toString(36)}`
+    await log(
+      runId,
+      'pr',
+      githubLive
+        ? `Pushing branch ${branch} to ${targetRepo} via GitHub App`
+        : `Pushing branch ${branch} (mock)`,
+    )
     await pause(300)
     const pr = await github.openPr({
-      repo: issue.repo,
+      repo: targetRepo,
       title: 'feat(customers): add VAT number support',
       body: demoPrBody,
-      branch: 'feat/vat-support',
+      branch,
       files: [
         { path: 'packages/db/migrations/0001_vat_number.sql', content: demoPlan.migrationSql ?? '' },
         { path: 'packages/db/src/schema.ts', content: '// + vatNumber column' },
@@ -199,7 +231,14 @@ async function execute(opts: StartRunOptions): Promise<void> {
 
   // ----- IMAGE -----
   await phase(runId, 'image', 'Building Chainguard preview image', async () => {
-    await log(runId, 'image', 'Resolving apko config for preview runtime')
+    const cgLive = await chainguard.isLive()
+    await log(
+      runId,
+      'image',
+      cgLive
+        ? 'Running apko build in cgr.dev/chainguard/apko container'
+        : 'Resolving apko config for preview runtime (mock)',
+    )
     await pause(300)
     await log(runId, 'image', 'Fetching packages from cgr.dev')
     await pause(500)

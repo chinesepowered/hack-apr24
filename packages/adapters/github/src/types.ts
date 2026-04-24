@@ -7,6 +7,11 @@ export interface OpenedPr {
   number: number
   url: string
   branch: string
+  title: string
+  body: string
+  filesChanged: number
+  additions: number
+  deletions: number
 }
 
 export interface GitHubAdapter {

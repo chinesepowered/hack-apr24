@@ -4,6 +4,9 @@ export interface ForkedDatabase {
   connectionString: string
   readOnlyConnectionString?: string
   createdAt: string
+  sizeBytes?: number
+  rowsCopied?: number
+  region?: string
 }
 
 export interface GhostAdapter {

@@ -1,0 +1,11 @@
+query ListCustomers {
+  customers {
+    id
+    name
+    country
+    orders {
+      id
+      totalCents
+    }
+  }
+}

@@ -39,6 +39,7 @@ services:
     volumes:
       - ./services/cosmo-router/config.yaml:/app/config.yaml:ro
       - ./services/cosmo-router/supergraph.json:/app/supergraph.json:ro
+      - ./services/cosmo-router/operations:/app/operations:ro
 
   # (demo) self-hosted InsForge backend platform.
   # Uncomment once the team has cloned insforge/insforge and configured it.

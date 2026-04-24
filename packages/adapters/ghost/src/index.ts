@@ -7,8 +7,9 @@ export { GhostLive, GhostMock }
 
 export function makeGhost(opts: {
   apiKey?: string
+  spaceId?: string
   useMock?: boolean
 }): GhostAdapter {
   if (opts.useMock || !opts.apiKey) return new GhostMock()
-  return new GhostLive(opts.apiKey)
+  return new GhostLive(opts.apiKey, { spaceId: opts.spaceId })
 }
