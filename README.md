@@ -1,18 +1,28 @@
-# Branch
+# 🌱 Branch
 
-> Autonomous feature-development agent. File a GitHub issue → minutes later a real PR opens against a forked-from-production database, schema-verified through a federated GraphQL supergraph, packaged in a Chainguard-hardened Wolfi image.
+> 🤖 **Autonomous feature-development agent.** File a GitHub issue → ~60 seconds later a real PR opens against a forked-from-production database, schema-verified through a federated GraphQL supergraph, packaged in a Chainguard-hardened Wolfi image with a measured CVE delta. ⚡
 
-A typical run takes ~60 seconds against real infrastructure: GLM 5.1 plans the change, Ghost forks production, Drizzle applies the migration to the fork, the Cosmo Router proves the new schema works across three federated subgraphs, the GitHub App opens the PR, and apko builds the per-PR preview image with a CVE delta vs `node:20`.
+## 💡 Why this exists
 
-## What the demo shows (live, not narrated)
+Shipping a small feature today still costs hours of engineering wall-time: write the migration, hope it doesn't lock prod, scaffold a staging DB, write a feature branch, push, wait for CI, debug a flaky preview env, scan the container, get reviewed, deploy. Every step is automatable but no single tool owns the whole loop.
 
-1. **Issue lands** — *"Add VAT support for EU customers"*
-2. **Plan** — GLM 5.1 emits a strict-JSON plan over an OpenAI-compatible endpoint
-3. **Fork** — Ghost copy-on-write clone of `branch-prod`; the card shows the real `postgresql://tsdbadmin:…@*.tsdb.cloud.timescale.com:36019/tsdb` URL
-4. **Migrate** — each DDL statement applied to the fork over TLS (real `OK (185ms): ALTER TABLE customers ADD COLUMN …` log lines)
-5. **Verify** — fork inspected directly via `information_schema` (proves the column landed) **and** federated query (`customers { orders { … } } + searchProducts(…)`) round-trips through Cosmo Router → 3 Pothos subgraphs → Postgres
-6. **PR** — GitHub App commits 3 files via the git-data API and opens a real PR on a demo repo
-7. **Image** — `cgr.dev/chainguard/apko` builds the preview runtime; `cgr.dev/chainguard/grype` reports the CVE delta vs vanilla `node:20`
+🌱 **Branch owns the loop.** It reads the issue, writes the migration, **applies it to a real copy-on-write fork of production**, federation-verifies the result through the same GraphQL graph that serves humans, opens a PR with a `psql`-able preview database attached, and ships a hardened OCI image with a real CVE delta vs upstream — all from one webhook, all in under a minute, all visible on a live SSE-driven dashboard. 🚀
+
+🎯 **Who benefits**
+- 🧑‍💻 **Engineers** — stop hand-writing the same migration → preview-env → PR scaffolding for the 100th time
+- 🛡️ **Platform / SRE** — every preview env is automatically Wolfi-hardened, signed, and CVE-scanned; supply-chain hygiene is the default, not a slide deck
+- 📊 **Eng leadership** — turn "feature lead time" into a dial you can move; every step is observable on the dashboard with timings
+- 🤖 **Future-of-coding** — Branch's planner is itself a deployable Guild agent, the same supergraph that powers the UI is exposed as MCP tools, so any LLM client (Claude Desktop, Cursor, etc.) can drive Branch end-to-end
+
+## 🎬 What the demo shows — every step is real, no canned data
+
+1. 📨 **Issue lands** — *"Add VAT support for EU customers"*
+2. 🧠 **Plan** — GLM 5.1 emits a strict-JSON plan over an OpenAI-compatible endpoint, executed inside a Guild coded-agent subprocess
+3. 🍴 **Fork** — Ghost copy-on-write clone of `branch-prod`; the card shows the real `postgresql://tsdbadmin:…@*.tsdb.cloud.timescale.com:36019/tsdb` URL
+4. 🛠️ **Migrate** — each DDL statement applied to the fork over TLS (real `OK (185ms): ALTER TABLE customers ADD COLUMN …` log lines, idempotent on rerun)
+5. ✅ **Verify** — fork inspected directly via `information_schema` (proves the column, CHECK constraint, and partial index all landed) **and** a federated query (`customers { orders { … } } + searchProducts(…)`) round-trips through Cosmo Router → 3 Pothos subgraphs → Postgres
+6. 🔀 **PR** — GitHub App commits via the git-data API and opens a real PR on a demo repo, with the fork DSN embedded in the description
+7. 📦 **Image** — `cgr.dev/chainguard/apko` builds the preview runtime; `cgr.dev/chainguard/grype` scans both `registry:node:20` and the apko `oci-archive:` and prints the CVE delta (latest run: **`node:20=1408  chainguard=0  Δ=-1408`**)
 
 ## Sponsor leverage
 
