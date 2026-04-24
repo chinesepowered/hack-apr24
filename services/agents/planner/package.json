@@ -12,6 +12,9 @@
     "openai": "^4.76.0",
     "zod": "^3.23.8"
   },
+  "optionalDependencies": {
+    "@guildai/agents-sdk": "*"
+  },
   "devDependencies": {
     "@types/node": "^22.9.0",
     "tsx": "^4.19.2",

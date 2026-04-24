@@ -17,6 +17,7 @@ export class ChainguardMock implements ChainguardAdapter {
   async cveDelta(
     _vanillaRef: string,
     _chainguardRef: string,
+    _chainguardArchivePath?: string,
   ): Promise<{ vanilla: number; chainguard: number; delta: number }> {
     return { vanilla: 47, chainguard: 0, delta: -47 }
   }

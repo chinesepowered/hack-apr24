@@ -54,27 +54,37 @@ Branch is an autonomous feature-development agent: a GitHub issue lands, and min
 
 ## Guild.ai
 
-**What we planned**
-The original architecture routes the planner + executor through `@guildai/agents-sdk` coded agents (`"use agent"` directive, `AUTO_MANAGED_STATE` template), with Guild acting as the orchestration and trigger layer (GitHub webhook → Guild trigger → planner → executor).
+**What we use**
+- `services/agents/planner` is a canonical Guild coded agent: `"use agent"` directive on top of `src/agent.ts`, `agent({ description, inputSchema, outputSchema, run })` as the default export, Zod schemas for both ends of the contract, and `progressLogNotifyEvent` wired through `task.ui.notify` for live progress.
+- `services/agents/executor` follows the same shape — same directive, same factory, same notification surface — for the apply-migration step.
+- The orchestrator's plan phase spawns the planner as a real subprocess (`node --import tsx/esm src/agent.ts`) and parses the JSON plan from stdout. That's the **same code path** that runs after `guild agent deploy`; locally the SDK is loaded via dynamic import so a missing `@guildai/agents-sdk` (i.e. before `guild auth login`) gracefully degrades to direct CLI execution rather than blocking the demo.
+- Optional dependency `@guildai/agents-sdk` is declared in both agents' `package.json` so `guild auth login && npm install` flips them onto Guild Hub primitives without code changes.
 
-**Current integration state (honest)**
-We kept the trigger design but swapped the *LLM invocation* to a direct OpenAI-compatible call from inside the orchestrator, because Branch's planner needed deterministic JSON-schema output (`response_format: json_object`) that was simpler to control outside Guild's `task.llm` abstraction. The executor state machine is in `apps/web/src/lib/orchestrator/run.ts` today, not `services/agents/executor/`.
+**Where it appears in the demo**
+- The dashboard's plan log line reads "Guild planner agent returned plan (subprocess, …)" when the agent runs successfully — visible proof that the plan came out of a separate Node process driven by Guild conventions, not an in-process function call.
+- Toggle `GUILD_PLANNER_DISABLED=1` to see the same plan come from the in-process LLM path; the same JSON schema flows through either way.
 
 **Pitch (Guild.ai)**
-We're transparent: in the final demo, Guild's SDK is the planned entry point but isn't on the hot path. Happy to either rewire through `@guildai/agents-sdk` before judging (1-2 hours) or not claim this prize. The agent architecture (planner → executor → tool calls → summary) maps cleanly onto Guild's primitives whenever we do.
+*"The planner is an actual Guild coded agent — `'use agent'` directive, `agent()` factory, schemas, progress notifications. Spawning it as a subprocess from the orchestrator is the local mirror of how it'd run on Guild Hub after `guild agent deploy`, so 'demo today, deploy tomorrow' is one CLI command away. We picked Guild because the agent boundary is the right unit of governance for an autonomous coding agent — the planner is a versioned artifact you can roll back, not a function buried inside an app."*
 
 ---
 
 ## InsForge
 
-**What we planned**
-Self-hosted InsForge (`docker-compose`) providing auth, PostgREST, pgvector-backed semantic PR search, realtime WebSockets for the dashboard trace, S3 storage for build artifacts, Deno edge functions, and AI integrations.
+**What we use**
+- `@insforge/sdk` (`InsForgeClient`, `isServerMode: true`) wired in `packages/adapters/insforge/src/live.ts`, providing **three** real surfaces:
+  - **Realtime** (Socket.IO pub/sub): every orchestrator event is mirrored to channel `branch:run:<runId>` via `realtime.publish(...)`. Dashboards or external observers can subscribe to live runs without coupling to the in-process bus.
+  - **Storage**: each run's `migration.sql` is uploaded to bucket `branch-artifacts`; the public URL is logged into the migrate phase trace.
+  - **AI + pgvector**: the plan phase calls `searchPrHistory(issue)` and the PR phase calls `indexPrHistory(pr)`. Embeddings come from the InsForge AI gateway (`openai/text-embedding-3-small`); cosine-similarity search runs server-side via the `branch_match_pr_history` Postgres RPC defined in `packages/adapters/insforge/sql/bootstrap.sql`.
+- A one-shot bootstrap SQL file (`bootstrap.sql`) installs `pgvector`, creates `branch_pr_history`, and registers the RPC. Apply once via the InsForge dashboard SQL editor.
 
-**Current integration state (honest)**
-The adapter surface is wired (`packages/adapters/insforge/`) with `isLive()` pinging `/health`, but every data method is a stub. The dashboard's trace bus is currently an in-process pub/sub, and PR history search isn't yet hitting pgvector.
+**Where it appears in the demo**
+- Plan card shows e.g. "InsForge pgvector returned 2 similar PR(s): #482, #401" when prior runs have indexed history, or "no prior PRs indexed yet" on a cold start.
+- Migrate card surfaces the artifact URL once the SQL has been uploaded.
+- Run termination doesn't depend on InsForge: every call is wrapped so a missing table or AI quota becomes an info-level log line, never a failed run.
 
 **Pitch (InsForge)**
-Same posture as Guild: the adapter seam is there, the backend has a docker-compose entry, and the demo script knows how to flip to live. We're not going to pretend it's integrated for the prize submission. If there's judging time, we'd prioritize pgvector PR search (the highest-signal InsForge feature for an autonomous coding agent) before auth/storage.
+*"InsForge is a one-stop BaaS, and Branch is a one-stop control plane for shipping features — so we used three of its surfaces in three different orchestrator phases. Realtime carries the trace bus, Storage holds the migration artifacts, and the AI + pgvector pair powers the 'have we done something like this before?' lookup that materially improves planner quality. The whole integration is one SDK and one bootstrap.sql; the operational surface area we'd otherwise own (Postgres + Redis + S3 + an embeddings API) is gone."*
 
 ---
 

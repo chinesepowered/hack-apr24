@@ -25,16 +25,12 @@ try {
   pnpm --filter @branch/db seed   | Out-Null
 
   Write-Host "[live] starting subgraphs on :4001 :4002 :4003" -ForegroundColor Cyan
-  # Resolve the actual pnpm command file (on Windows pnpm is a .ps1/.cmd shim,
-  # so Start-Process -FilePath pnpm fails with "cannot find all the information
-  # required"). Pointing at the .cmd shim via cmd.exe is reliable.
-  $pnpmCmd = (Get-Command pnpm.cmd -ErrorAction SilentlyContinue)
-  if (-not $pnpmCmd) { $pnpmCmd = Get-Command pnpm -ErrorAction SilentlyContinue }
-  if (-not $pnpmCmd) { throw 'pnpm not found on PATH' }
-  $pnpmPath = $pnpmCmd.Source
-
+  # On Windows pnpm ships as both pnpm.cmd and pnpm.ps1; Start-Process -FilePath
+  # pnpm can resolve to the .ps1, which Windows then opens with the "How do you
+  # want to open this file?" dialog. Going through cmd.exe sidesteps the
+  # extension lookup entirely.
   function Start-Subgraph($filter) {
-    Start-Process -PassThru -WindowStyle Hidden -FilePath $pnpmPath -ArgumentList @('--filter', $filter, 'start')
+    Start-Process -PassThru -WindowStyle Hidden -FilePath 'cmd.exe' -ArgumentList @('/c', 'pnpm', '--filter', $filter, 'start')
   }
 
   $customers = Start-Subgraph '@branch/subgraph-customers'

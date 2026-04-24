@@ -3,6 +3,8 @@ export interface BuildResult {
   digest: string
   sizeBytes: number
   cveCount: number
+  /** Path to the OCI tarball produced by apko, retained for CVE scanning. */
+  archivePath?: string
 }
 
 export interface ChainguardAdapter {
@@ -12,7 +14,11 @@ export interface ChainguardAdapter {
     tag: string
   }): Promise<BuildResult>
   /** Compare CVE counts between a vanilla base image and our Chainguard build for the writeup. */
-  cveDelta(vanillaRef: string, chainguardRef: string): Promise<{
+  cveDelta(
+    vanillaRef: string,
+    chainguardRef: string,
+    chainguardArchivePath?: string,
+  ): Promise<{
     vanilla: number
     chainguard: number
     delta: number

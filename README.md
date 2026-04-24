@@ -1,73 +1,76 @@
 # Branch
 
-Autonomous feature-dev agent: file a GitHub issue, get a working PR with a live forked-DB preview environment in minutes.
+> Autonomous feature-development agent. File a GitHub issue → minutes later a real PR opens against a forked-from-production database, schema-verified through a federated GraphQL supergraph, packaged in a Chainguard-hardened Wolfi image.
 
-See [`plan.md`](./plan.md) for the full architecture, sponsor prize targets, and build phases.
+A typical run takes ~60 seconds against real infrastructure: GLM 5.1 plans the change, Ghost forks production, Drizzle applies the migration to the fork, the Cosmo Router proves the new schema works across three federated subgraphs, the GitHub App opens the PR, and apko builds the per-PR preview image with a CVE delta vs `node:20`.
 
-## Demo (zero credentials)
+## What the demo shows (live, not narrated)
+
+1. **Issue lands** — *"Add VAT support for EU customers"*
+2. **Plan** — GLM 5.1 emits a strict-JSON plan over an OpenAI-compatible endpoint
+3. **Fork** — Ghost copy-on-write clone of `branch-prod`; the card shows the real `postgresql://tsdbadmin:…@*.tsdb.cloud.timescale.com:36019/tsdb` URL
+4. **Migrate** — drizzle-kit applies the new migration to the fork
+5. **Verify** — federated query (`customers { orders { … } } + searchProducts(…)`) round-trips through Cosmo Router → 3 Pothos subgraphs → Postgres
+6. **PR** — GitHub App commits 3 files via the git-data API and opens a real PR on a demo repo
+7. **Image** — `cgr.dev/chainguard/apko` builds the preview runtime; `cgr.dev/chainguard/grype` reports the CVE delta vs vanilla `node:20`
+
+## Sponsor leverage
+
+| Sponsor | What Branch uses | Why it's impressive |
+|---|---|---|
+| **Wundergraph (Cosmo)** | Cosmo Router (`v0.311.0`) federating three Pothos subgraphs (`customers` / `orders` / `catalog`) over Drizzle + Postgres. **Cosmo MCP Gateway** at `:5025/mcp` auto-exposes every operation as an LLM tool. **Cosmo Streams** registers NATS as the event provider. Supergraph composed with `wgc` from live SDL. | Cosmo is Branch's *agent-tools layer*. The exact same federated graph that powers humans at `http://localhost:3002/` powers the LLM planner via MCP. One supergraph, two consumers — no bespoke "agent tools" service to maintain. |
+| **Ghost (Tiger Data)** | Live `ghost.build/v0` adapter: `POST /spaces/{id}/databases/{ref}/fork`, status polling until `running`, password retrieval, real `postgresql://…` connection string per PR. Idempotent reuse if a fork already exists. | "Fork a database as casually as you fork a branch" is Ghost's thesis — Branch makes it the **default of every PR**, not a manual setup step. The Fork card on the dashboard ships a `psql`-able URL pointing at a real Timescale Cloud database that holds a copy-on-write snapshot of prod with the PR's migration already applied. |
+| **Chainguard** | `cgr.dev/chainguard/apko` builds the per-PR preview image from `services/preview-builder/apko.yaml` (Wolfi base + `nodejs-22`); `cgr.dev/chainguard/grype` runs the CVE scan against the loaded image; `cgr.dev/chainguard/postgres` is Branch's production database container. Apko config declares non-root accounts and dual `x86_64` + `aarch64` archs. | Supply-chain security isn't a bolt-on — every artifact Branch produces is Chainguard-hardened by default. The Image card shows a real `sha256:…` digest, real image size (53 MB), and a real CVE delta vs upstream — produced live during the demo, not slide-ware. |
+| **Guild.ai** | Coded agents in `services/agents/{planner,executor}/` — `"use agent"` directive, `agent({ description, inputSchema, outputSchema, run })` factory, Zod schemas, `progressLogNotifyEvent` notifications. The orchestrator's plan phase **spawns the planner as a real subprocess** (`node --import tsx/esm src/agent.ts`) and parses the JSON plan from stdout — the same code path that runs after `guild agent deploy`. SDK loaded via dynamic import so the demo works before `guild auth login`. | Guild's coded-agent primitives map 1:1 onto Branch's planner/executor split, and the planner is a *deployable* artifact today, not a function buried in the app. The dashboard log line "Guild planner agent returned plan (subprocess, …)" is visible proof that planning crossed a process boundary. |
+| **InsForge** | `@insforge/sdk` wired in `packages/adapters/insforge/`: **realtime** publishes every orchestrator event to channel `branch:run:<runId>`, **storage** uploads each migration's SQL to bucket `branch-artifacts`, **AI + pgvector** powers `searchPrHistory`/`indexPrHistory` for the plan and PR phases. Cosine similarity runs server-side via the `branch_match_pr_history` Postgres RPC; embeddings come from the InsForge AI gateway. One-shot bootstrap in `packages/adapters/insforge/sql/bootstrap.sql`. | Three InsForge surfaces, three different orchestrator phases — Realtime carries the trace bus, Storage holds the migration artifacts, AI + pgvector powers "have we shipped something like this before?" lookups that materially improve planner quality. The infrastructure surface area we'd otherwise own (Redis + S3 + an embeddings API + a vector DB) collapses to one SDK. |
+
+## Run it
+
+Requires Docker Desktop and Node ≥ 22.
 
 ```bash
 pnpm install
+pnpm demo:live          # boots Postgres + NATS + Cosmo Router + 3 subgraphs + web
+                        # → http://localhost:3000  →  click "Run demo"
+pnpm demo:down          # stop everything
+```
+
+For zero-credentials narration mode (every sponsor falls back to a rich mock):
+
+```bash
 pnpm demo
 ```
 
-Open http://localhost:3000 and click **Run demo**. Every sponsor integration
-falls back to a rich mock that streams over SSE, so no API keys are required
-to see the full pipeline end to end.
+Live-mode credentials are documented in [`deploy.md`](./deploy.md). [`sponsors.md`](./sponsors.md) has the per-sponsor pitch in long form.
 
-Stage flow (~90s):
-1. Dashboard loads with a seeded GitHub issue ("Add VAT support for EU customers").
-2. Click **Run demo**. The phase timeline advances through plan → fork → migrate → verify → pr → image.
-3. Ghost fork card shows a copyable `psql` URL; Migration card shows the generated SQL with syntax coloring.
-4. Verify card shows the before/after of the federated GraphQL query.
-5. PR card shows the opened PR with diff stats and the full PR body.
-6. Image card shows the Chainguard CVE delta (47 → 0).
+## Architecture
 
-## Live mode (optional)
+- `apps/web/` — Next.js 16 dashboard + SSE orchestrator (`src/lib/orchestrator/run.ts`)
+- `packages/adapters/{ghost,github,chainguard,wundergraph,insforge}/` — live + mock adapters, auto-fallback when creds are missing
+- `packages/shared/` — zod schemas, env parser, run-event types, demo fixtures
+- `packages/db/` — Drizzle schema, migrations, idempotent seed
+- `services/subgraphs/{customers,orders,catalog}/` — Pothos federation subgraphs over Drizzle
+- `services/cosmo-router/` — Cosmo supergraph router config, persisted operations, NATS event provider
+- `services/preview-builder/apko.yaml` — Chainguard Wolfi image spec for per-PR previews
+- `services/agents/{planner,executor}/` — Guild coded-agent projects
 
-Fill in `.env` (see `.env.example`) and restart. The planner will call GLM 5.1
-at `OPENAI_BASE_URL` when `OPENAI_API_KEY` and `OPENAI_MODEL` are set.
-Per-sponsor mocks can be toggled with `USE_MOCK_GHOST=1` etc.
+## MCP for any client
 
-## Live stack (real Postgres + real Cosmo federation)
+Point Claude Desktop / Cursor / any MCP client at the running router:
 
-Boots Chainguard Postgres, NATS, Cosmo Router, and the three Pothos
-subgraphs wired to Drizzle queries against seeded Postgres. The dashboard's
-**verify** phase hits the real supergraph instead of returning canned data.
-
-```bash
-# one-time: compose the supergraph.json from live SDL
-pnpm compose:supergraph
-
-# boot everything (Postgres, NATS, router :3002, subgraphs, web :3000)
-pnpm demo:live
-
-# tear down subgraphs + containers
-pnpm demo:down
+```json
+{ "mcpServers": { "branch": { "transport": "http", "url": "http://localhost:5025/mcp" } } }
 ```
 
-Requires Docker Desktop running. The router serves the GraphQL playground at
-http://localhost:3002/ and accepts federated queries across
-`customers`/`orders`/`catalog` subgraphs. `pnpm compose:supergraph` must be
-re-run whenever a subgraph's SDL changes.
-
-## Repo layout
-
-- `apps/web/` — Next.js 16 dashboard + SSE orchestrator (`src/lib/orchestrator/`)
-- `packages/shared/` — zod schemas, env parser, demo fixtures
-- `packages/adapters/{ghost,github,chainguard,insforge,wundergraph}/` — live + mock sponsor adapters
-- `services/agents/{planner,executor}/` — Guild coded-agent projects (standalone npm)
-- `services/subgraphs/{customers,orders,catalog}/` — Pothos federation subgraphs
-- `services/cosmo-router/` — Cosmo supergraph router config
-- `services/preview-builder/` — apko YAML for per-PR Chainguard images
+Tools exposed: `execute_graphql`, `execute_operation_{get_customer_by_id, list_customers, search_products}`, `get_operation_info`, `get_schema`.
 
 ## Scripts
 
-```
-pnpm demo              # dashboard only (mocks-first, no creds needed)
-pnpm demo:live         # full stack: Postgres + NATS + Cosmo router + subgraphs + web
-pnpm demo:down         # stop the live stack
-pnpm compose:supergraph  # re-compose services/cosmo-router/supergraph.json
-pnpm typecheck         # turbo typecheck across workspace
-pnpm build             # turbo build (including next build for the dashboard)
-```
+| Command | Purpose |
+|---|---|
+| `pnpm demo` | dashboard only, every sponsor mocked (no creds, no Docker) |
+| `pnpm demo:live` | full live stack: Postgres + NATS + Cosmo Router + subgraphs + web |
+| `pnpm demo:down` | stop the live stack |
+| `pnpm compose:supergraph` | re-compose `services/cosmo-router/supergraph.json` from subgraph SDL |
+| `pnpm typecheck` | turbo typecheck across the workspace |
+| `pnpm build` | turbo build (including `next build`) |

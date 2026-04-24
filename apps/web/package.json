@@ -14,6 +14,7 @@
     "@branch/adapter-github": "workspace:*",
     "@branch/adapter-insforge": "workspace:*",
     "@branch/adapter-wundergraph": "workspace:*",
+    "@branch/db": "workspace:*",
     "@branch/shared": "workspace:*",
     "next": "16.2.4",
     "openai": "^6.34.0",

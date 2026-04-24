@@ -46,24 +46,34 @@ export class ChainguardLive implements ChainguardAdapter {
     const inspect = await runDocker(['inspect', '--format', '{{.Id}}|{{.Size}}', loadedRef])
     const [digest, sizeStr] = inspect.trim().split('|')
 
-    await fs.rm(outDir, { recursive: true, force: true })
-
+    // Retain the OCI tarball for grype (oci-archive:) — caller cleans up via cveDelta.
     return {
       ref: loadedRef,
       digest: digest || `sha256:${'0'.repeat(64)}`,
       sizeBytes: Number(sizeStr) || 0,
       cveCount: 0,
+      archivePath: tarPath,
     }
   }
 
   async cveDelta(
     vanillaRef: string,
     chainguardRef: string,
+    chainguardArchivePath?: string,
   ): Promise<{ vanilla: number; chainguard: number; delta: number }> {
-    const [vanilla, chainguard] = await Promise.all([
-      grypeCount(vanillaRef),
-      grypeCount(chainguardRef),
-    ])
+    // Vanilla: scan via `registry:` so grype pulls directly over HTTPS — no
+    // dependency on the host docker socket (which isn't available inside the
+    // grype container on Windows Docker Desktop). Chainguard: scan the OCI
+    // tarball that apko produced; that file is mounted into the container so
+    // again no daemon is needed.
+    const vanilla = await grypeRegistry(vanillaRef)
+    const chainguard = chainguardArchivePath
+      ? await grypeOciArchive(chainguardArchivePath)
+      : await grypeRegistry(chainguardRef)
+    if (chainguardArchivePath) {
+      await fs.rm(path.dirname(chainguardArchivePath), { recursive: true, force: true })
+        .catch(() => undefined)
+    }
     return { vanilla, chainguard, delta: chainguard - vanilla }
   }
 
@@ -77,17 +87,35 @@ export class ChainguardLive implements ChainguardAdapter {
   }
 }
 
-async function grypeCount(ref: string): Promise<number> {
-  const out = await runDocker([
-    'run', '--rm',
-    '-v', '/var/run/docker.sock:/var/run/docker.sock',
-    GRYPE_IMAGE,
-    ref, '-o', 'json', '--quiet',
-  ])
+async function grypeRegistry(ref: string): Promise<number> {
+  return grypeRun(['run', '--rm', GRYPE_IMAGE, `registry:${ref}`, '-o', 'json', '--quiet'], ref)
+}
+
+async function grypeOciArchive(archivePath: string): Promise<number> {
+  // Mount the parent dir read-only so grype can resolve the OCI tarball.
+  const dir = path.dirname(archivePath)
+  const file = path.basename(archivePath)
+  return grypeRun(
+    [
+      'run', '--rm',
+      '-v', `${dir}:/scan:ro`,
+      GRYPE_IMAGE,
+      `oci-archive:/scan/${file}`,
+      '-o', 'json', '--quiet',
+    ],
+    archivePath,
+  )
+}
+
+async function grypeRun(args: string[], label: string): Promise<number> {
   try {
+    const out = await runDocker(args)
     const report = JSON.parse(out) as { matches?: unknown[] }
     return report.matches?.length ?? 0
-  } catch {
+  } catch (err) {
+    process.stderr.write(`[chainguard] grype scan of ${label} failed: ${
+      err instanceof Error ? err.message : String(err)
+    }\n`)
     return 0
   }
 }

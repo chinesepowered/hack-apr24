@@ -110,9 +110,47 @@ The live adapter shells out to the official `cgr.dev/chainguard/apko` container 
 
 > Note: the first apko run pulls `cgr.dev/chainguard/apko` + `cgr.dev/chainguard/grype` and fetches Wolfi packages, so it takes ~1-2 minutes. Subsequent runs are fast.
 
-### B4. InsForge, Guild.ai — skip unless you want them
+### B4. InsForge — real BaaS for traces / artifacts / pgvector 👤
 
-Neither is on the critical demo path. Tell me if you want them live and I'll estimate the effort.
+The live adapter is built on `@insforge/sdk` and uses three InsForge surfaces:
+
+- **Realtime** (Socket.IO pub/sub): every orchestrator event is mirrored to channel `branch:run:<runId>`.
+- **Storage**: each run's `migration.sql` is uploaded to bucket `branch-artifacts`; the public URL is logged in the migrate phase.
+- **AI + pgvector**: the plan phase calls `searchPrHistory(issue)` and the PR phase calls `indexPrHistory(pr)`. Embeddings come from the InsForge AI gateway (`openai/text-embedding-3-small`); cosine similarity runs server-side via the `branch_match_pr_history` RPC.
+
+To turn it on:
+
+1. Run InsForge locally (`docker run insforge/insforge`) or use a hosted instance.
+2. Apply the bootstrap once:
+
+   ```powershell
+   psql $env:INSFORGE_PG_URL -f packages/adapters/insforge/sql/bootstrap.sql
+   ```
+
+   This enables `pgvector`, creates `branch_pr_history`, and registers the RPC.
+3. Set in `.env`:
+
+   ```
+   INSFORGE_URL=http://localhost:7130
+   INSFORGE_API_KEY=<anon key from your InsForge dashboard>
+   ```
+
+The orchestrator detects a live InsForge automatically; missing creds → mock. Failures mid-run (table missing, AI quota) are caught and surfaced as info-level log lines so they never break the pipeline.
+
+### B5. Guild.ai — real coded agent for the planner 👤
+
+`services/agents/planner` is a canonical Guild coded agent: `"use agent"` directive, `agent({ description, inputSchema, outputSchema, run })` default export, `progressLogNotifyEvent` for UI notifications. The orchestrator's plan phase spawns it as a subprocess (`node --import tsx/esm src/agent.ts`) and parses the JSON plan from stdout — the exact same code path that runs after `guild agent deploy`.
+
+To turn it on for Guild Hub deployment:
+
+```powershell
+cd services/agents/planner
+guild auth login          # configures the @guildai/* registry, installs the SDK
+guild agent init --name branch-planner --template AUTO_MANAGED_STATE
+guild agent save --message "v1" --wait --publish
+```
+
+The optional `@guildai/agents-sdk` dependency is loaded via indirect dynamic import, so a missing SDK on a fresh checkout never blocks the demo — the same `run` function executes either way. Set `GUILD_PLANNER_DISABLED=1` to bypass the subprocess and fall back to in-process LLM / mock.
 
 ---
 

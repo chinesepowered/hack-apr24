@@ -55,8 +55,8 @@ export class GhostLive implements GhostAdapter {
   }
 
   private async waitForRunning(spaceId: string, dbRef: string): Promise<GhostDatabase> {
-    const interval = this.opts.pollIntervalMs ?? 2000
-    const timeout = this.opts.pollTimeoutMs ?? 120_000
+    const interval = this.opts.pollIntervalMs ?? 3000
+    const timeout = this.opts.pollTimeoutMs ?? 600_000
     const deadline = Date.now() + timeout
     while (Date.now() < deadline) {
       const db = await this.req<GhostDatabase>(
@@ -73,12 +73,25 @@ export class GhostLive implements GhostAdapter {
 
   async fork(sourceName: string, forkName: string): Promise<ForkedDatabase> {
     const spaceId = await this.spaceId()
-    const initial = await this.req<GhostDatabase>(
+    // If a fork with this name already exists (e.g. a previous run left it
+    // behind because it took longer than the wait timeout), reuse it instead
+    // of failing with a 409. The fork name is unique per PR in our usage.
+    const existing = await this.findByName(spaceId, forkName)
+    const target = existing ?? (await this.req<GhostDatabase>(
       `/spaces/${encodeURIComponent(spaceId)}/databases/${encodeURIComponent(sourceName)}/fork`,
       { method: 'POST', body: JSON.stringify({ name: forkName }) },
-    )
-    const ready = await this.waitForRunning(spaceId, initial.id)
+    ))
+    const ready = target.status === 'running'
+      ? target
+      : await this.waitForRunning(spaceId, target.id)
     return ghostDatabaseToForked(ready)
+  }
+
+  private async findByName(spaceId: string, name: string): Promise<GhostDatabase | null> {
+    const dbs = await this.req<GhostDatabase[]>(
+      `/spaces/${encodeURIComponent(spaceId)}/databases`,
+    )
+    return dbs.find((d) => d.name === name) ?? null
   }
 
   async discard(name: string): Promise<void> {
@@ -107,10 +120,13 @@ export class GhostLive implements GhostAdapter {
 }
 
 function ghostDatabaseToForked(db: GhostDatabase): ForkedDatabase {
-  const user = 'postgres'
+  // Ghost runs on Timescale Cloud: the Postgres role is always `tsdbadmin`
+  // and the default database name is `tsdb`. The Ghost name (db.name) is
+  // a user-facing label that does not appear in the connection string.
+  const user = 'tsdbadmin'
   const pw = db.password ?? ''
   const auth = pw ? `${user}:${encodeURIComponent(pw)}@` : `${user}@`
-  const connectionString = `postgres://${auth}${db.host}:${db.port}/${db.name}?sslmode=require`
+  const connectionString = `postgresql://${auth}${db.host}:${db.port}/tsdb?sslmode=require`
   return {
     id: db.id,
     name: db.name,

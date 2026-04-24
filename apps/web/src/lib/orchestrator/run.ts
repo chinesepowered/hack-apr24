@@ -2,6 +2,8 @@ import {
   type Issue,
   type Phase,
   type RunEvent,
+  type RunStatus,
+  type TraceEvent,
   demoIssue,
   demoPlan,
   demoPrBody,
@@ -10,6 +12,8 @@ import {
 import { makeGhost } from '@branch/adapter-ghost'
 import { makeGitHub } from '@branch/adapter-github'
 import { makeChainguard } from '@branch/adapter-chainguard'
+import { type InsForgeAdapter, makeInsForge } from '@branch/adapter-insforge'
+import { applyMigrationToFork, probeCustomersVatColumn } from '@branch/db'
 import { publish } from './bus.ts'
 import { planIssue } from './planner.ts'
 
@@ -37,8 +41,47 @@ export function startRun(opts: StartRunOptions): void {
 }
 
 let seqCounter = 0
+let insforgeBus: InsForgeAdapter | null = null
 function emit(e: RunEvent): void {
-  publish({ ...e, seq: ++seqCounter } as RunEvent)
+  const event = { ...e, seq: ++seqCounter } as RunEvent
+  publish(event)
+  if (insforgeBus) {
+    void insforgeBus
+      .publishTrace(event.runId, toTraceEvent(event))
+      .catch(() => {
+        // Realtime publish failure must not break the local in-process bus.
+      })
+  }
+}
+
+const PHASE_TO_STATUS: Record<Phase, RunStatus> = {
+  plan: 'planning',
+  fork: 'forking',
+  migrate: 'migrating',
+  verify: 'verifying',
+  pr: 'opening_pr',
+  image: 'building_image',
+}
+
+function toTraceEvent(event: RunEvent): TraceEvent {
+  const phase = (() => {
+    if ('phase' in event && event.phase) return PHASE_TO_STATUS[event.phase]
+    if (event.kind === 'plan_generated') return 'planning'
+    if (event.kind === 'fork_ready') return 'forking'
+    if (event.kind === 'migration_applied') return 'migrating'
+    if (event.kind === 'verification_result') return 'verifying'
+    if (event.kind === 'pr_opened') return 'opening_pr'
+    if (event.kind === 'image_built') return 'building_image'
+    if (event.kind === 'run_completed') return event.status === 'failed' ? 'failed' : 'succeeded'
+    return 'queued'
+  })()
+  const message =
+    event.kind === 'log'
+      ? event.message
+      : event.kind === 'phase_started'
+        ? event.label
+        : event.kind
+  return { runId: event.runId, ts: event.ts, phase, message, data: { kind: event.kind } }
 }
 
 async function execute(opts: StartRunOptions): Promise<void> {
@@ -62,6 +105,13 @@ async function execute(opts: StartRunOptions): Promise<void> {
     workspaceRoot: process.env.BRANCH_WORKSPACE_ROOT ?? process.cwd(),
     useMock: process.env.USE_MOCK_CHAINGUARD === '1',
   })
+  const insforge = makeInsForge({
+    url: process.env.INSFORGE_URL,
+    apiKey: process.env.INSFORGE_API_KEY,
+    useMock: process.env.USE_MOCK_INSFORGE === '1',
+  })
+  const insforgeLive = await insforge.isLive()
+  insforgeBus = insforgeLive ? insforge : null
   const demoRepo = process.env.GITHUB_DEMO_REPO
 
   const ts = () => new Date().toISOString()
@@ -72,11 +122,30 @@ async function execute(opts: StartRunOptions): Promise<void> {
 
   // ----- PLAN -----
   await phase(runId, 'plan', 'Planning changes', async () => {
-    await log(runId, 'plan', 'Fetching issue context and related PRs from pgvector')
+    if (insforgeLive) {
+      const neighbours = await insforge
+        .searchPrHistory(`${issue.title}\n${issue.body}`, 3)
+        .catch(() => [])
+      await log(
+        runId,
+        'plan',
+        neighbours.length
+          ? `InsForge pgvector returned ${neighbours.length} similar PR(s): ${neighbours
+              .map((n) => `#${n.prNumber}`)
+              .join(', ')}`
+          : 'InsForge pgvector: no prior PRs indexed yet',
+      )
+    } else {
+      await log(runId, 'plan', 'Fetching issue context and related PRs from pgvector')
+    }
     await pause(500)
     const result = await planIssue(issue)
     const label =
-      result.mode === 'llm' ? `Calling planner agent (${result.model})` : 'Planner agent (mock mode)'
+      result.mode === 'guild'
+        ? `Guild planner agent returned plan (subprocess${result.model ? `, ${result.model}` : ''})`
+        : result.mode === 'llm'
+          ? `Calling planner agent (${result.model})`
+          : 'Planner agent (mock mode)'
     await log(runId, 'plan', label)
     await pause(600)
     await log(
@@ -89,8 +158,10 @@ async function execute(opts: StartRunOptions): Promise<void> {
   }, pause)
 
   // ----- FORK -----
+  let forkConnectionString: string | null = null
+  let ghostLive = false
   await phase(runId, 'fork', 'Forking production database', async () => {
-    const ghostLive = await ghost.isLive()
+    ghostLive = await ghost.isLive()
     const baseDb = process.env.GHOST_BASE_DATABASE ?? 'branch-prod'
     await log(
       runId,
@@ -101,6 +172,7 @@ async function execute(opts: StartRunOptions): Promise<void> {
     )
     await pause(500)
     const fork = await ghost.fork(baseDb, `pr-${issue.number}-vat-support`)
+    forkConnectionString = fork.connectionString
     await log(runId, 'fork', `Copy-on-write clone ready${fork.region ? ` in ${fork.region}` : ''}`)
     await pause(300)
     emit({
@@ -121,18 +193,68 @@ async function execute(opts: StartRunOptions): Promise<void> {
 
   // ----- MIGRATE -----
   await phase(runId, 'migrate', 'Applying migration to fork', async () => {
-    await log(runId, 'migrate', 'Generating migration from schema diff (drizzle-kit)')
-    await pause(400)
-    await log(runId, 'migrate', 'Connecting to fork over TLS')
-    await pause(300)
-    await log(runId, 'migrate', 'BEGIN; ALTER TABLE customers …')
-    await pause(500)
-    await log(runId, 'migrate', 'CHECK constraint added (non-blocking)')
-    await pause(200)
-    await log(runId, 'migrate', 'Partial index built on 1,204,817 rows in 612ms')
-    await pause(200)
-    await log(runId, 'migrate', 'COMMIT')
     const sql = demoPlan.migrationSql ?? ''
+    await log(runId, 'migrate', 'Generating migration from schema diff (drizzle-kit)')
+    await pause(200)
+    if (ghostLive && forkConnectionString && sql) {
+      await log(runId, 'migrate', `Connecting to fork over TLS (${redactDsn(forkConnectionString)})`)
+      try {
+        const result = await applyMigrationToFork(forkConnectionString, sql, {
+          statementTimeoutMs: 60_000,
+        })
+        if (result.bootstrapped) {
+          await log(runId, 'migrate', 'Bootstrapped customers table on empty fork (CREATE TABLE IF NOT EXISTS)')
+        }
+        for (const stmt of result.statements) {
+          const head = stmt.sql.replace(/\s+/g, ' ').slice(0, 80)
+          if (stmt.ok && !stmt.error) {
+            await log(runId, 'migrate', `OK (${stmt.durationMs}ms): ${head}…`)
+          } else if (stmt.ok) {
+            await log(runId, 'migrate', `Already applied (${stmt.durationMs}ms): ${head}…`)
+          } else {
+            await log(runId, 'migrate', `FAILED: ${head}… — ${stmt.error}`)
+          }
+        }
+        await log(
+          runId,
+          'migrate',
+          `Migration committed in ${result.totalDurationMs}ms (${result.statements.filter((s) => s.ok).length}/${result.statements.length} stmts)`,
+        )
+      } catch (err) {
+        await log(
+          runId,
+          'migrate',
+          `Migration failed against fork: ${err instanceof Error ? err.message : String(err)}`,
+        )
+        throw err
+      }
+    } else {
+      await log(runId, 'migrate', 'Connecting to fork over TLS')
+      await pause(200)
+      await log(runId, 'migrate', 'BEGIN; ALTER TABLE customers …')
+      await pause(300)
+      await log(runId, 'migrate', 'CHECK constraint added (non-blocking)')
+      await pause(150)
+      await log(runId, 'migrate', 'Partial index built on 1,204,817 rows in 612ms')
+      await pause(150)
+      await log(runId, 'migrate', 'COMMIT')
+    }
+    if (insforgeLive && sql) {
+      try {
+        const url = await insforge.putArtifact(
+          `runs/${runId}/migration.sql`,
+          sql,
+          'application/sql',
+        )
+        await log(runId, 'migrate', `Migration archived to InsForge storage: ${url}`)
+      } catch (err) {
+        await log(
+          runId,
+          'migrate',
+          `InsForge artifact upload skipped: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
+    }
     emit({
       runId,
       seq: 0,
@@ -145,6 +267,26 @@ async function execute(opts: StartRunOptions): Promise<void> {
 
   // ----- VERIFY -----
   await phase(runId, 'verify', 'Verifying via federated supergraph', async () => {
+    if (ghostLive && forkConnectionString) {
+      try {
+        const probe = await probeCustomersVatColumn(forkConnectionString)
+        if (probe.exists) {
+          await log(
+            runId,
+            'verify',
+            `Fork inspection: customers.vat_number ${probe.dataType}(${probe.characterMaximumLength ?? '?'}) nullable=${probe.isNullable} check=${probe.hasCheckConstraint} index=${probe.hasIndex}`,
+          )
+        } else {
+          await log(runId, 'verify', 'Fork inspection: customers.vat_number column missing')
+        }
+      } catch (err) {
+        await log(
+          runId,
+          'verify',
+          `Fork inspection skipped: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
+    }
     const routerUrl = process.env.ROUTER_URL
     if (routerUrl) {
       await log(runId, 'verify', `Hitting Cosmo Router at ${routerUrl}`)
@@ -227,6 +369,23 @@ async function execute(opts: StartRunOptions): Promise<void> {
         deletions: pr.deletions,
       },
     })
+    if (insforgeLive) {
+      try {
+        await insforge.indexPrHistory({
+          prNumber: pr.number,
+          repo: targetRepo,
+          title: pr.title,
+          summary: pr.body,
+        })
+        await log(runId, 'pr', `Indexed PR #${pr.number} into InsForge pgvector`)
+      } catch (err) {
+        await log(
+          runId,
+          'pr',
+          `InsForge indexPrHistory skipped: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
+    }
   }, pause)
 
   // ----- IMAGE -----
@@ -248,7 +407,13 @@ async function execute(opts: StartRunOptions): Promise<void> {
       apkoConfigPath: 'services/preview-builder/apko.yaml',
       tag: `pr-${issue.number}`,
     })
-    const cve = await chainguard.cveDelta('node:20', build.ref)
+    await log(runId, 'image', `Scanning ${build.ref} and node:20 with grype`)
+    const cve = await chainguard.cveDelta('node:20', build.ref, build.archivePath)
+    await log(
+      runId,
+      'image',
+      `CVE delta: node:20=${cve.vanilla}  chainguard=${cve.chainguard}  Δ=${cve.delta}`,
+    )
     emit({
       runId,
       seq: 0,
@@ -309,6 +474,16 @@ async function log(runId: string, phase: Phase, message: string): Promise<void> 
   })
 }
 
+
+function redactDsn(dsn: string): string {
+  try {
+    const u = new URL(dsn)
+    if (u.password) u.password = '***'
+    return u.toString()
+  } catch {
+    return dsn.replace(/:[^:@/]+@/, ':***@')
+  }
+}
 
 interface LiveVerifyResult {
   query: string
