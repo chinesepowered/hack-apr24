@@ -82,8 +82,10 @@ export class InsForgeLive implements InsForgeAdapter {
     { prNumber: number; repo: string; title: string; summary: string; score: number }[]
   > {
     const embedding = await this.embed(query)
+    // PostgREST can't marshal a JSON number[] into PG's `vector` arg, so pass
+    // the pgvector input literal as TEXT and let the RPC cast it internally.
     const { data, error } = await this.client.database.rpc(RPC_MATCH, {
-      query_embedding: embedding,
+      query_embedding: `[${embedding.join(',')}]`,
       match_count: k,
     })
     if (error) {

@@ -2,6 +2,8 @@
 
 Branch is an autonomous feature-development agent: a GitHub issue lands, and minutes later a real PR opens against a live preview environment — schema changes forked off production data, code compiled into a hardened container, end-to-end verified against a federated GraphQL supergraph. This document covers the sponsors Branch is built on, what we use from each, and the angle we'd pitch to the judges for that specific prize.
 
+Each sponsor block below includes a **Live proof** subsection citing the exact log line from one real end-to-end run (`run_modkmlhf_bu6d`, ~65s wall-time, PR #8 opened at https://github.com/chinesepowered/hack-apr24demo/pull/8). Every line is from the actual `/api/runs/<id>/events` SSE trace — nothing is canned.
+
 ---
 
 ## WunderGraph (Cosmo)
@@ -15,6 +17,9 @@ Branch is an autonomous feature-development agent: a GitHub issue lands, and min
 **Where it appears in the demo**
 - The dashboard's **Verify** phase runs a real federated query (`customers { orders { … } } + searchProducts(…)`) against the live router — so the UI is provably showing data that crossed three subgraphs, not a canned payload.
 - Because the agent speaks MCP, the same supergraph is the single planning surface for humans and for LLMs. No custom "agent tools" layer; Cosmo is the tools layer.
+
+**Live proof (run `run_modkmlhf_bu6d`)**
+- Verify phase: `Hitting Cosmo Router at http://localhost:3002/graphql` — federated query answered across all three Pothos subgraphs with real customer + order + product rows.
 
 **Pitch (Wundergraph — 1st/2nd)**
 *"Cosmo isn't just our GraphQL layer — it's the agent's interface to our system. Three federated subgraphs plus the MCP Gateway plus NATS streams plus schema contracts, all composed by `wgc` into one binary that's running right there in Docker. When Branch's planner needs to reason about 'what does our customer schema look like?' it calls Cosmo MCP tools, not a bespoke introspection endpoint. The judge demo literally shows a federated query roundtripping through the router into three Postgres databases on stage."*
@@ -65,6 +70,9 @@ Branch is an autonomous feature-development agent: a GitHub issue lands, and min
 **Where it appears in the demo**
 - The dashboard's plan log line reads "Guild planner agent returned plan (subprocess, …)" when the agent runs successfully — visible proof that the plan came out of a separate Node process driven by Guild conventions, not an in-process function call.
 - Toggle `GUILD_PLANNER_DISABLED=1` to see the same plan come from the in-process LLM path; the same JSON schema flows through either way.
+
+**Live proof (run `run_modkmlhf_bu6d`)**
+- Plan phase: `Guild planner agent returned plan (subprocess, zai-org/GLM-5-FP8)` — planner ran out-of-process via `node --import tsx/esm src/agent.ts` and the JSON plan was read from its stdout.
 
 **Pitch (Guild.ai)**
 *"The planner is an actual Guild coded agent — `'use agent'` directive, `agent()` factory, schemas, progress notifications. Spawning it as a subprocess from the orchestrator is the local mirror of how it'd run on Guild Hub after `guild agent deploy`, so 'demo today, deploy tomorrow' is one CLI command away. We picked Guild because the agent boundary is the right unit of governance for an autonomous coding agent — the planner is a versioned artifact you can roll back, not a function buried inside an app."*

@@ -2479,12 +2479,12 @@
     {
       "spdxElementId": "SPDXRef-Package-Image-sha256-a44f6c02e8fa0e3917453cc31918bf19647acc470070f3f45a7bde848fc12cd4",
       "relationshipType": "CONTAINS",
-      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-libgcc"
+      "relatedSpdxElement": "SPDXRef-Package-apk-libgcc-15.2.0-r11"
     },
     {
       "spdxElementId": "SPDXRef-Package-Image-sha256-a44f6c02e8fa0e3917453cc31918bf19647acc470070f3f45a7bde848fc12cd4",
       "relationshipType": "CONTAINS",
-      "relatedSpdxElement": "SPDXRef-Package-apk-libgcc-15.2.0-r11"
+      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-libgcc"
     },
     {
       "spdxElementId": "SPDXRef-Package-apk-glibc-2.43-r6",
@@ -2654,12 +2654,12 @@
     {
       "spdxElementId": "SPDXRef-Package-Image-sha256-a44f6c02e8fa0e3917453cc31918bf19647acc470070f3f45a7bde848fc12cd4",
       "relationshipType": "CONTAINS",
-      "relatedSpdxElement": "SPDXRef-Package-apk-icu78-data-full-78.3-r1"
+      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-icu78-data-full"
     },
     {
       "spdxElementId": "SPDXRef-Package-Image-sha256-a44f6c02e8fa0e3917453cc31918bf19647acc470070f3f45a7bde848fc12cd4",
       "relationshipType": "CONTAINS",
-      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-icu78-data-full"
+      "relatedSpdxElement": "SPDXRef-Package-apk-icu78-data-full-78.3-r1"
     },
     {
       "spdxElementId": "SPDXRef-Package-apk-libbrotlicommon1-1.2.0-r3",
@@ -2679,12 +2679,12 @@
     {
       "spdxElementId": "SPDXRef-Package-Image-sha256-a44f6c02e8fa0e3917453cc31918bf19647acc470070f3f45a7bde848fc12cd4",
       "relationshipType": "CONTAINS",
-      "relatedSpdxElement": "SPDXRef-Package-apk-libbrotlicommon1-1.2.0-r3"
+      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-libbrotlicommon1"
     },
     {
       "spdxElementId": "SPDXRef-Package-Image-sha256-a44f6c02e8fa0e3917453cc31918bf19647acc470070f3f45a7bde848fc12cd4",
       "relationshipType": "CONTAINS",
-      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-libbrotlicommon1"
+      "relatedSpdxElement": "SPDXRef-Package-apk-libbrotlicommon1-1.2.0-r3"
     },
     {
       "spdxElementId": "SPDXRef-Package-apk-libbrotlidec1-1.2.0-r3",
@@ -2729,12 +2729,12 @@
     {
       "spdxElementId": "SPDXRef-Package-Image-sha256-a44f6c02e8fa0e3917453cc31918bf19647acc470070f3f45a7bde848fc12cd4",
       "relationshipType": "CONTAINS",
-      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-libbrotlienc1"
+      "relatedSpdxElement": "SPDXRef-Package-apk-libbrotlienc1-1.2.0-r3"
     },
     {
       "spdxElementId": "SPDXRef-Package-Image-sha256-a44f6c02e8fa0e3917453cc31918bf19647acc470070f3f45a7bde848fc12cd4",
       "relationshipType": "CONTAINS",
-      "relatedSpdxElement": "SPDXRef-Package-apk-libbrotlienc1-1.2.0-r3"
+      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-libbrotlienc1"
     },
     {
       "spdxElementId": "SPDXRef-Package-apk-libcrypto3-3.6.2-r2",
@@ -2804,12 +2804,12 @@
     {
       "spdxElementId": "SPDXRef-Package-Image-sha256-a44f6c02e8fa0e3917453cc31918bf19647acc470070f3f45a7bde848fc12cd4",
       "relationshipType": "CONTAINS",
-      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-libicu78"
+      "relatedSpdxElement": "SPDXRef-Package-apk-libicu78-78.3-r1"
     },
     {
       "spdxElementId": "SPDXRef-Package-Image-sha256-a44f6c02e8fa0e3917453cc31918bf19647acc470070f3f45a7bde848fc12cd4",
       "relationshipType": "CONTAINS",
-      "relatedSpdxElement": "SPDXRef-Package-apk-libicu78-78.3-r1"
+      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-libicu78"
     },
     {
       "spdxElementId": "SPDXRef-Package-apk-libnghttp2-14-1.68.1-r2",

@@ -14,6 +14,7 @@
     "demo:live": "powershell -ExecutionPolicy Bypass -File scripts/live-up.ps1",
     "demo:down": "powershell -ExecutionPolicy Bypass -File scripts/live-down.ps1",
     "compose:supergraph": "powershell -ExecutionPolicy Bypass -File scripts/compose-supergraph.ps1",
+    "seed:pr-history": "node --env-file=.env scripts/seed-insforge-pr-history.mjs",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",

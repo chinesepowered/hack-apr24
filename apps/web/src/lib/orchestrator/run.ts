@@ -290,7 +290,7 @@ async function execute(opts: StartRunOptions): Promise<void> {
     const routerUrl = process.env.ROUTER_URL
     if (routerUrl) {
       await log(runId, 'verify', `Hitting Cosmo Router at ${routerUrl}`)
-      const live = await liveVerify(routerUrl)
+      const live = await liveVerify(routerUrl, (msg) => log(runId, 'verify', msg))
       await pause(200)
       emit({
         runId,
@@ -302,6 +302,27 @@ async function execute(opts: StartRunOptions): Promise<void> {
         after: live.after,
         ok: live.ok,
       })
+      if (insforgeLive) {
+        try {
+          const verifyArtifact = JSON.stringify(
+            { runId, routerUrl, queries: live.queries, ok: live.ok },
+            null,
+            2,
+          )
+          const url = await insforge.putArtifact(
+            `runs/${runId}/verify.json`,
+            verifyArtifact,
+            'application/json',
+          )
+          await log(runId, 'verify', `Verify results archived to InsForge storage: ${url}`)
+        } catch (err) {
+          await log(
+            runId,
+            'verify',
+            `InsForge verify archive skipped: ${err instanceof Error ? err.message : String(err)}`,
+          )
+        }
+      }
     } else {
       await log(runId, 'verify', 'Discovering MCP tools on Cosmo Router')
       await pause(300)
@@ -485,30 +506,87 @@ function redactDsn(dsn: string): string {
   }
 }
 
+interface LiveVerifyQuery {
+  name: string
+  query: string
+  durationMs: number
+  ok: boolean
+  response: unknown
+}
+
 interface LiveVerifyResult {
+  // The "headline" query the UI shows in the verification card.
   query: string
   after: unknown
   ok: boolean
+  // Per-query breakdown archived into InsForge storage.
+  queries: LiveVerifyQuery[]
 }
 
-async function liveVerify(routerUrl: string): Promise<LiveVerifyResult> {
-  // Federated query touching all three subgraphs through the real supergraph.
-  // Proves the router → subgraphs → Postgres path is live.
-  const query =
-    'query VerifyFederation {\n  customers { id name country orders { id totalCents } }\n  searchProducts(query: "") { sku title priceCents }\n}'
-  try {
-    const res = await fetch(routerUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ query }),
-    })
-    const body = (await res.json()) as { data?: unknown; errors?: unknown }
-    return { query, after: body, ok: res.ok && !body.errors }
-  } catch (err) {
-    return {
-      query,
-      after: { errors: [{ message: err instanceof Error ? err.message : String(err) }] },
-      ok: false,
+// Three independent federated operations so the router → subgraphs → Postgres
+// path is exercised across multiple entry points, not just one. Proves that
+// Cosmo is stitching customers + orders + catalog through federation keys.
+const VERIFY_OPERATIONS: { name: string; query: string }[] = [
+  {
+    name: 'VerifyFederation',
+    query:
+      'query VerifyFederation {\n  customers { id name country orders { id totalCents } }\n  searchProducts(query: "") { sku title priceCents }\n}',
+  },
+  {
+    name: 'CustomersWithOrders',
+    query:
+      'query CustomersWithOrders {\n  customers { id email name country orders { id totalCents } }\n}',
+  },
+  {
+    name: 'CatalogSearch',
+    query:
+      'query CatalogSearch {\n  searchProducts(query: "shirt") { sku title priceCents }\n}',
+  },
+]
+
+async function liveVerify(
+  routerUrl: string,
+  progress?: (msg: string) => Promise<void>,
+): Promise<LiveVerifyResult> {
+  const queries: LiveVerifyQuery[] = []
+  for (const op of VERIFY_OPERATIONS) {
+    const started = Date.now()
+    try {
+      const res = await fetch(routerUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ operationName: op.name, query: op.query }),
+      })
+      const body = (await res.json()) as { data?: unknown; errors?: unknown }
+      const ok = res.ok && !body.errors
+      const durationMs = Date.now() - started
+      queries.push({ name: op.name, query: op.query, durationMs, ok, response: body })
+      if (progress) {
+        await progress(
+          ok
+            ? `Cosmo ${op.name} OK (${durationMs}ms)`
+            : `Cosmo ${op.name} returned errors (${durationMs}ms)`,
+        )
+      }
+    } catch (err) {
+      const durationMs = Date.now() - started
+      queries.push({
+        name: op.name,
+        query: op.query,
+        durationMs,
+        ok: false,
+        response: { errors: [{ message: err instanceof Error ? err.message : String(err) }] },
+      })
+      if (progress) {
+        await progress(`Cosmo ${op.name} failed (${durationMs}ms): ${err instanceof Error ? err.message : String(err)}`)
+      }
     }
+  }
+  const headline = queries[0]
+  return {
+    query: headline.query,
+    after: headline.response,
+    ok: queries.every((q) => q.ok),
+    queries,
   }
 }
